@@ -2,18 +2,17 @@ name: Build Android App
 on:
   push:
     branches: [ main, master ]
-  # 开启手动触发，并配置下拉菜单
   workflow_dispatch:
     inputs:
       build_type:
         description: '选择打包类型 (Build Type)'
         required: true
-        default: 'debug_apk'
+        default: 'debug'
         type: choice
         options:
-          - debug_apk
-          - release_aab
-          - both
+          - debug
+          - release
+          - aab
 
 jobs:
   build:
@@ -46,41 +45,69 @@ jobs:
         run: npx cap sync android
 
       # ==========================================
-      # 阶段一：打 Debug APK (日常测试用)
-      # 触发条件：Push 代码，或者手动选择了 debug_apk / both
+      # 公共步骤：开启混淆 (仅 Release APK 和 AAB 需要)
+      # ==========================================
+      - name: Enable Obfuscation and Shrinking
+        if: github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'aab'
+        run: |
+          sed -i 's/minifyEnabled false/minifyEnabled true\n            shrinkResources true/' android/app/build.gradle
+
+      # ==========================================
+      # 选项 1: Debug APK (日常开发调试，Push 代码默认走这个)
       # ==========================================
       - name: Build Debug APK
-        if: github.event_name == 'push' || github.event.inputs.build_type == 'debug_apk' || github.event.inputs.build_type == 'both'
+        if: github.event_name == 'push' || github.event.inputs.build_type == 'debug'
         run: |
           cd android
           ./gradlew assembleDebug
 
       - name: Upload Debug APK
-        if: github.event_name == 'push' || github.event.inputs.build_type == 'debug_apk' || github.event.inputs.build_type == 'both'
+        if: github.event_name == 'push' || github.event.inputs.build_type == 'debug'
         uses: actions/upload-artifact@v4
         with:
           name: app-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
       # ==========================================
-      # 阶段二：打 Release AAB (上架 Google Play 用)
-      # 触发条件：手动选择了 release_aab / both
+      # 选项 2: Release APK (上架前真机测试，带正式签名和混淆)
       # ==========================================
-      - name: Enable Obfuscation and Shrinking
-        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+      - name: Build Release APK
+        if: github.event.inputs.build_type == 'release'
         run: |
-          sed -i 's/minifyEnabled false/minifyEnabled true\n            shrinkResources true/' android/app/build.gradle
+          cd android
+          ./gradlew assembleRelease
 
+      - name: Sign Release APK
+        if: github.event.inputs.build_type == 'release'
+        uses: r0adkll/sign-android-release@v1
+        id: sign_apk
+        with:
+          releaseDirectory: android/app/build/outputs/apk/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Signed Release APK
+        if: github.event.inputs.build_type == 'release'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed-apk
+          path: ${{steps.sign_apk.outputs.signedReleaseFile}}
+
+      # ==========================================
+      # 选项 3: Release AAB (最终上架 Google Play，带正式签名和混淆)
+      # ==========================================
       - name: Build Release AAB
-        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+        if: github.event.inputs.build_type == 'aab'
         run: |
           cd android
           ./gradlew bundleRelease
 
-      - name: Sign AAB
-        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+      - name: Sign Release AAB
+        if: github.event.inputs.build_type == 'aab'
         uses: r0adkll/sign-android-release@v1
-        id: sign_app
+        id: sign_aab
         with:
           releaseDirectory: android/app/build/outputs/bundle/release
           signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
@@ -88,9 +115,9 @@ jobs:
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
 
-      - name: Upload Signed AAB
-        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+      - name: Upload Signed Release AAB
+        if: github.event.inputs.build_type == 'aab'
         uses: actions/upload-artifact@v4
         with:
           name: app-release-signed-aab
-          path: ${{steps.sign_app.outputs.signedReleaseFile}}
+          path: ${{steps.sign_aab.outputs.signedReleaseFile}}
