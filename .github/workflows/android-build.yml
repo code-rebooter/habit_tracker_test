@@ -1,5 +1,4 @@
 name: Build Android APK
-
 on:
   push:
     branches: [ main, master ]
@@ -8,45 +7,38 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up Java 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 21
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+
+      # 新增这一步：配置 Java 21 环境，满足 Capacitor v8 的编译要求
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
 
       - name: Install dependencies
-        run: npm ci
+        run: npm install
 
       - name: Build web app
         run: npm run build
 
-      - name: Add Android Platform if missing
-        run: |
-          if [ ! -d android ]; then
-            npx cap add android
-          fi
+      - name: Add Android Platform
+        run: npx cap add android
 
       - name: Capacitor Sync
         run: npx cap sync android
 
-      - name: Grant gradlew permission
-        run: chmod +x android/gradlew
-
       - name: Build Android APK
         run: |
           cd android
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug
 
       - name: Upload APK
         uses: actions/upload-artifact@v4
