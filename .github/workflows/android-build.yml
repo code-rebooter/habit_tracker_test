@@ -14,13 +14,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22 # 升级到 Node.js 22 以满足 Capacitor v8 的要求
+          node-version: 22
 
       - name: Install dependencies
         run: npm install
 
       - name: Build web app
         run: npm run build
+
+      # 新增这一步：让服务器自动初始化 Android 平台目录
+      - name: Add Android Platform
+        run: npx cap add android
 
       - name: Capacitor Sync
         run: npx cap sync android
