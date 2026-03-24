@@ -1,8 +1,19 @@
-name: Build Android APK
+name: Build Android App
 on:
   push:
     branches: [ main, master ]
+  # 开启手动触发，并配置下拉菜单
   workflow_dispatch:
+    inputs:
+      build_type:
+        description: '选择打包类型 (Build Type)'
+        required: true
+        default: 'debug_apk'
+        type: choice
+        options:
+          - debug_apk
+          - release_aab
+          - both
 
 jobs:
   build:
@@ -16,7 +27,6 @@ jobs:
         with:
           node-version: 22
 
-      # 新增这一步：配置 Java 21 环境，满足 Capacitor v8 的编译要求
       - name: Set up Java
         uses: actions/setup-java@v4
         with:
@@ -35,13 +45,52 @@ jobs:
       - name: Capacitor Sync
         run: npx cap sync android
 
-      - name: Build Android APK
+      # ==========================================
+      # 阶段一：打 Debug APK (日常测试用)
+      # 触发条件：Push 代码，或者手动选择了 debug_apk / both
+      # ==========================================
+      - name: Build Debug APK
+        if: github.event_name == 'push' || github.event.inputs.build_type == 'debug_apk' || github.event.inputs.build_type == 'both'
         run: |
           cd android
           ./gradlew assembleDebug
 
-      - name: Upload APK
+      - name: Upload Debug APK
+        if: github.event_name == 'push' || github.event.inputs.build_type == 'debug_apk' || github.event.inputs.build_type == 'both'
         uses: actions/upload-artifact@v4
         with:
-          name: app-debug
+          name: app-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+
+      # ==========================================
+      # 阶段二：打 Release AAB (上架 Google Play 用)
+      # 触发条件：手动选择了 release_aab / both
+      # ==========================================
+      - name: Enable Obfuscation and Shrinking
+        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+        run: |
+          sed -i 's/minifyEnabled false/minifyEnabled true\n            shrinkResources true/' android/app/build.gradle
+
+      - name: Build Release AAB
+        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+        run: |
+          cd android
+          ./gradlew bundleRelease
+
+      - name: Sign AAB
+        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+        uses: r0adkll/sign-android-release@v1
+        id: sign_app
+        with:
+          releaseDirectory: android/app/build/outputs/bundle/release
+          signingKeyBase64: ${{ secrets.KEYSTORE_BASE64 }}
+          alias: ${{ secrets.KEY_ALIAS }}
+          keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
+          keyPassword: ${{ secrets.KEY_PASSWORD }}
+
+      - name: Upload Signed AAB
+        if: github.event.inputs.build_type == 'release_aab' || github.event.inputs.build_type == 'both'
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-release-signed-aab
+          path: ${{steps.sign_app.outputs.signedReleaseFile}}
