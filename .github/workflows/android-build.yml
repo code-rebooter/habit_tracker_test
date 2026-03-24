@@ -53,7 +53,7 @@ jobs:
           sed -i 's/minifyEnabled false/minifyEnabled true\n            shrinkResources true/' android/app/build.gradle
 
       # ==========================================
-      # 选项 1: Debug APK (日常开发调试，Push 代码默认走这个)
+      # 选项 1: Debug APK
       # ==========================================
       - name: Build Debug APK
         if: github.event_name == 'push' || github.event.inputs.build_type == 'debug'
@@ -69,7 +69,7 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
 
       # ==========================================
-      # 选项 2: Release APK (上架前真机测试，带正式签名和混淆)
+      # 选项 2: Release APK
       # ==========================================
       - name: Build Release APK
         if: github.event.inputs.build_type == 'release'
@@ -87,6 +87,7 @@ jobs:
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
+          buildToolsVersion: 34.0.0  # <--- 新增这一行，指定使用最新的构建工具
 
       - name: Upload Signed Release APK
         if: github.event.inputs.build_type == 'release'
@@ -96,7 +97,7 @@ jobs:
           path: ${{steps.sign_apk.outputs.signedReleaseFile}}
 
       # ==========================================
-      # 选项 3: Release AAB (最终上架 Google Play，带正式签名和混淆)
+      # 选项 3: Release AAB
       # ==========================================
       - name: Build Release AAB
         if: github.event.inputs.build_type == 'aab'
@@ -114,6 +115,7 @@ jobs:
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
+          buildToolsVersion: 34.0.0  # <--- 新增这一行，指定使用最新的构建工具
 
       - name: Upload Signed Release AAB
         if: github.event.inputs.build_type == 'aab'
