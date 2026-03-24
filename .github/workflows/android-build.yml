@@ -14,8 +14,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          # 删除了 cache: 'npm'，因为我们没有同步 lock 文件
+          node-version: 22 # 升级到 Node.js 22 以满足 Capacitor v8 的要求
 
       - name: Install dependencies
         run: npm install
