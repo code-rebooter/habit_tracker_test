@@ -45,12 +45,16 @@ jobs:
         run: npx cap sync android
 
       # ==========================================
-      # 公共步骤：开启混淆 (仅 Release APK 和 AAB 需要)
+      # 公共步骤：准备 Release 环境 (仅 Release APK 和 AAB 需要)
       # ==========================================
-      - name: Enable Obfuscation and Shrinking
+      - name: Prepare Release Environment
         if: github.event.inputs.build_type == 'release' || github.event.inputs.build_type == 'aab'
         run: |
+          # 1. 动态开启代码混淆和资源压缩
           sed -i 's/minifyEnabled false/minifyEnabled true\n            shrinkResources true/' android/app/build.gradle
+          
+          # 2. 补齐签名插件所需的 29.0.3 构建工具 (自动同意协议并下载)
+          echo "y" | $ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager "build-tools;29.0.3"
 
       # ==========================================
       # 选项 1: Debug APK
@@ -87,7 +91,6 @@ jobs:
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
-          buildToolsVersion: 34.0.0  # <--- 新增这一行，指定使用最新的构建工具
 
       - name: Upload Signed Release APK
         if: github.event.inputs.build_type == 'release'
@@ -115,7 +118,6 @@ jobs:
           alias: ${{ secrets.KEY_ALIAS }}
           keyStorePassword: ${{ secrets.KEYSTORE_PASSWORD }}
           keyPassword: ${{ secrets.KEY_PASSWORD }}
-          buildToolsVersion: 34.0.0  # <--- 新增这一行，指定使用最新的构建工具
 
       - name: Upload Signed Release AAB
         if: github.event.inputs.build_type == 'aab'
