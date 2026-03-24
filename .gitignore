@@ -6,3 +6,16 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Capacitor
+android/
+ios/
+www/
+capacitor.config.json
+capacitor.config.js
+capacitor.config.ts.old
+
+# Lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
